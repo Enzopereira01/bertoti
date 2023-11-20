@@ -1,0 +1,5 @@
+![uml](https://github.com/Enzopereira01/bertoti/assets/126246486/6d3cd87b-de10-4f83-8b66-b158b3e5b689)
+![hardware(part1)](https://github.com/Enzopereira01/bertoti/assets/126246486/1d7305d8-e58a-4077-8496-e61635f406af)
+![part2](https://github.com/Enzopereira01/bertoti/assets/126246486/da27540e-83a3-4de5-b39c-eb220cda0a89)
+![comp_imag](https://github.com/Enzopereira01/bertoti/assets/126246486/bb4bb2a1-bda5-451a-a7c6-dc987b5097ac)
+![loja_imag](https://github.com/Enzopereira01/bertoti/assets/126246486/c66e16d6-35f6-43f3-bb21-1996a13f8ba9)
