@@ -1,12 +1,22 @@
 import telebot
 import random
 import os 
+from typing import Dict, KeysView
 
 TOKEN = "6487234556:AAGJgiyTM2yfm34xwv5SiHHHurYdrihSOWQ"
 
 bot = telebot.TeleBot(TOKEN)
 
-lista_receitas_comidas = {
+
+class ReceitasDict(dict):
+    def keys(self) -> KeysView[str]:
+        return super().keys()
+    
+lista_receitas_comidas = ReceitasDict()
+
+lista_receitas_drinks = ReceitasDict()
+
+lista_receitas_comidas.update({
        # Receitas de comidas
     "Frango ao Curry com Leite de Coco\n\n"
     "Ingredientes: peito de frango, leite de coco, curry em pó, cebola, alho, gengibre, pimenta e sal.\n\n"
@@ -49,50 +59,50 @@ lista_receitas_comidas = {
     "Sobremesa de Pudim de Chia com Frutas Vermelhas\n\n"
     "Ingredientes: leite de coco, sementes de chia, mel ou adoçante a gosto, frutas vermelhas frescas.\n\n"
     "Modo de preparo: Misture o leite de coco com as sementes de chia e o adoçante. Deixe descansar na geladeira por algumas horas ou durante a noite. Sirva com frutas vermelhas frescas por cima.":""
-}
+})
 
-lista_receitas_drinks = {
+lista_receitas_drinks.update({
         # Receitas para drinks
     "Mojito:\n\n"
     "Ingredientes: Rum branco, hortelã, açúcar, suco de limão, água com gás.\n\n"
-    "Modo de preparo: Macere folhas de hortelã com açúcar e suco de limão, adicione rum e gelo, complete com água com gás.",
+    "Modo de preparo: Macere folhas de hortelã com açúcar e suco de limão, adicione rum e gelo, complete com água com gás.":"",
 
     "Blue Lagoon:\n\n"
     "Ingredientes: Vodka, Blue Curaçao, limonada.\n\n"
-    "Modo de preparo: Em um copo com gelo, adicione vodka e Blue Curaçao, complete com limonada.",
+    "Modo de preparo: Em um copo com gelo, adicione vodka e Blue Curaçao, complete com limonada.":"",
 
     "Martini Clássico:\n\n"
     "Ingredientes: Gin, vermute seco, azeitona.\n\n"
-    "Modo de preparo: Misture gin e vermute com gelo, coe em uma taça e decore com uma azeitona.",
+    "Modo de preparo: Misture gin e vermute com gelo, coe em uma taça e decore com uma azeitona.":"",
 
     "Sangria:\n\n"
     "Ingredientes: Vinho tinto, frutas (laranja, maçã, limão), açúcar, club soda.\n\n"
-    "Modo de preparo: Misture todos os ingredientes em uma jarra e deixe na geladeira por algumas horas antes de servir.",
+    "Modo de preparo: Misture todos os ingredientes em uma jarra e deixe na geladeira por algumas horas antes de servir.":"",
 
     "Daiquiri:\n\n"
     "Ingredientes: Rum branco, suco de limão, xarope simples.\n\n"
-    "Modo de preparo: Agite os ingredientes com gelo e coe em uma taça.",
+    "Modo de preparo: Agite os ingredientes com gelo e coe em uma taça.":"",
 
     "Gin Tônica:\n\n"
     "Ingredientes: Gin, água tônica, limão.\n\n"
-    "Modo de preparo: Em um copo com gelo, adicione gin e água tônica, finalize com uma fatia de limão.",
+    "Modo de preparo: Em um copo com gelo, adicione gin e água tônica, finalize com uma fatia de limão.":"",
 
     "Margarita:\n\n"
     "Ingredientes: Tequila, licor de laranja, suco de limão, sal.\n\n"
-    "Modo de preparo: Agite os ingredientes com gelo, sirva em uma taça previamente salgada.",
+    "Modo de preparo: Agite os ingredientes com gelo, sirva em uma taça previamente salgada.":"",
 
     "Cosmopolitan:\n\n"
     "Ingredientes: Vodka, licor de laranja, suco de cranberry, suco de limão.\n\n"
-    "Modo de preparo: Agite todos os ingredientes com gelo e coe em uma taça de martini.",
+    "Modo de preparo: Agite todos os ingredientes com gelo e coe em uma taça de martini.":"",
 
     "Piña Colada:\n\n"
     "Ingredientes: Rum branco, suco de abacaxi, leite de coco, gelo.\n\n"
-    "Modo de preparo: Bata todos os ingredientes no liquidificador com gelo até ficar homogêneo.",
+    "Modo de preparo: Bata todos os ingredientes no liquidificador com gelo até ficar homogêneo.":"",
 
     "Caipirinha:\n\n"
     "Ingredientes: Cachaça, limão, açúcar.\n\n"
-    "Modo de preparo: Macere limão com açúcar, adicione cachaça e gelo, misture bem."
-}
+    "Modo de preparo: Macere limão com açúcar, adicione cachaça e gelo, misture bem.":""
+})
 
 receita_atual_drinks = None
 
@@ -122,9 +132,8 @@ def handle_text(message):
 @bot.message_handler(commands=['drinks'])
 def handle_text(message):
     chat_id = message.chat.id
-    receita_atual_drinks = random.choice(list(  lista_receitas_drinks.keys()))
+    receita_atual_drinks = random.choice(list(lista_receitas_drinks.keys()))
     bot.send_message(chat_id, receita_atual_drinks)
-
 
 # Inicialização do bot
 bot.polling()
