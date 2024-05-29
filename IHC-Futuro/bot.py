@@ -4,6 +4,7 @@ import random
 import os 
 from typing import Dict, KeysView
 
+# O Token é unico para cada bot, o Token a seguir é apenas um exemplo, é necessário realizar a verificação qual é o Token di seu bot
 TOKEN = "6487234556:AAGJgiyTM2yfm34xwv5SiHHHurYdrihSOWQ"
 
 bot = telebot.TeleBot(TOKEN)
