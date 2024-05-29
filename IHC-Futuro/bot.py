@@ -1,3 +1,4 @@
+# Antes de iniciar o código é necessário realizar pip install pytelegrambotapi --upgrade no cmd
 import telebot
 import random
 import os 
