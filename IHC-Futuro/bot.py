@@ -111,27 +111,27 @@ receita_atual_drinks = None
 receita_atual_comidas = None
 
 # Função para iniciar o menu
-@bot.message_handler(commands=['start'])
+@bot.message_handler(func=lambda message: message.text.lower() == "iniciar")
 def handle_start(message):
     chat_id = message.chat.id
     boas_vindas = "Bem-vindo ao Bot de Perguntas receitas!\n\n" \
                   "O Bot possui alguns conhecimentos sobre receita."\
-                  "Para começar, use o comando /receita.\n\n" \
+                  "Para começar, use o comando receita ou drinks.\n\n" \
                   "Aqui estão alguns comandos disponíveis:\n" \
-                  "/receita - Para conseguir visualizar uma receita em questão de forma simples.\n" \
-                  "/drinks - Para conseguir visualizar algumas receitas de algumas bebidas."
+                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n" \
+                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas."
 
     bot.send_message(chat_id, boas_vindas)
 
 # Função para mostrar uma receita de comidas
-@bot.message_handler(commands=['receita'])
+@bot.message_handler(func=lambda message: message.text.lower() == 'receita')
 def handle_text(message):
     chat_id = message.chat.id
     receita_atual_comidas = random.choice(list(lista_receitas_comidas.keys()))
     bot.send_message(chat_id, receita_atual_comidas)
 
 # Função para mostrar uma receita de comidas
-@bot.message_handler(commands=['drinks'])
+@bot.message_handler(func=lambda message: message.text.lower() == 'drinks')
 def handle_text(message):
     chat_id = message.chat.id
     receita_atual_drinks = random.choice(list(lista_receitas_drinks.keys()))
