@@ -111,21 +111,39 @@ receita_atual_drinks = None
 receita_atual_comidas = None
 
 # Função para iniciar o menu
+@bot.message_handler(commands=['start'])
+def handle_start(message):
+    chat_id = message.chat.id
+    boas_vindas = "Bem-vindo ao Bot de Perguntas receitas!\n\n" \
+                  "O Bot possui alguns conhecimentos sobre receita."\
+                  "Para começar, use o comando receita ou drinks.\n\n" \
+                  "Aqui estão alguns comandos disponíveis:\n\n" \
+                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n\n" \
+                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas.\n\n"\
+                  "deletar - uma grande parte das mensagens a cima\n\n"\
+                  "iniciar - para ver essa mensagem novamente"
+
+    bot.send_message(chat_id, boas_vindas)
+
+
+# Função para iniciar o menu
 @bot.message_handler(func=lambda message: message.text.lower() == "iniciar")
 def handle_start(message):
     chat_id = message.chat.id
     boas_vindas = "Bem-vindo ao Bot de Perguntas receitas!\n\n" \
                   "O Bot possui alguns conhecimentos sobre receita."\
                   "Para começar, use o comando receita ou drinks.\n\n" \
-                  "Aqui estão alguns comandos disponíveis:\n" \
-                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n" \
-                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas."
-
+                  "Aqui estão alguns comandos disponíveis:\n\n" \
+                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n\n" \
+                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas.\n\n"\
+                  "deletar - uma grande parte das mensagens a cima\n\n"\
+                  "iniciar - para ver essa mensagem novamente"
+    
     bot.send_message(chat_id, boas_vindas)
 
 # Função para mostrar uma receita de comidas
 @bot.message_handler(func=lambda message: message.text.lower() == 'receita')
-def handle_text(message):
+def handle_text(message):   
     chat_id = message.chat.id
     receita_atual_comidas = random.choice(list(lista_receitas_comidas.keys()))
     bot.send_message(chat_id, receita_atual_comidas)
@@ -136,6 +154,29 @@ def handle_text(message):
     chat_id = message.chat.id
     receita_atual_drinks = random.choice(list(lista_receitas_drinks.keys()))
     bot.send_message(chat_id, receita_atual_drinks)
+
+
+# Função para excluir todas as mensagens do chat
+@bot.message_handler(func=lambda message: message.text.lower() == 'deletar')
+def handle_delete_all_messages(message):
+    chat_id = message.chat.id
+    message_id = message.message_id
+    # Obtém o ID da última mensagem no chat
+    last_message_id = message_id - 1
+    # Exclui todas as mensagens do chat até a última mensagem
+    while last_message_id >= 0:
+        # Tenta excluir a mensagem
+        try:
+            bot.delete_message(chat_id, last_message_id)
+        except Exception as e:
+            print(f"Erro ao excluir mensagem: {e}")
+        # Atualiza o ID da última mensagem processada
+        last_message_id -= 1
+    try:
+        bot.delete_message(chat_id, message_id)
+    except Exception as e:
+        print(f"Erro ao excluir menssagem atual: {e}")
+
 
 # Inicialização do bot
 bot.polling()
