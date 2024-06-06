@@ -1,182 +1,194 @@
-# Antes de iniciar o código é necessário realizar pip install pytelegrambotapi --upgrade no cmd
-import telebot
-import random
-import os 
-from typing import Dict, KeysView
+import logging
+import re
+from telegram import Update, InputMediaPhoto
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import spacy
 
-# O Token é unico para cada bot, o Token a seguir é apenas um exemplo, é necessário realizar a verificação qual é o Token di seu bot
-TOKEN = "6487234556:AAGJgiyTM2yfm34xwv5SiHHHurYdrihSOWQ"
+# Configuração do logger
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-bot = telebot.TeleBot(TOKEN)
+# Certifique-se de que o modelo de linguagem do spaCy está instalado
+try:
+    nlp = spacy.load("pt_core_news_sm")
+except OSError:
+    logging.error("Modelo pt_core_news_sm não encontrado. Por favor, instale o modelo usando 'python -m spacy download pt_core_news_sm'")
+    raise
+
+# Classe para representar um produto da loja de tênis
+class Tenis:
+    def __init__(self, modelo, preco, tamanho, foto_url):
+        self.modelo = modelo
+        self.preco = preco
+        self.tamanho = tamanho
+        self.foto_url = foto_url
+
+    def tamanhos_disponiveis(self):
+        # Retorna uma lista de tamanhos disponíveis
+        tamanhos = []
+        for tamanho in self.tamanho.split(','):
+            if '-' in tamanho:
+                start, end = map(int, tamanho.split('-'))
+                tamanhos.extend(range(start, end + 1))
+            else:
+                tamanhos.append(int(tamanho))
+        return tamanhos
+
+# Lista de tênis disponíveis na loja com URLs de fotos
+tenis_disponiveis = [
+    Tenis("Nike Air Max", 299.99, "36-45", "https://imgnike-a.akamaihd.net/1300x1300/010228IE.jpg"),
+    Tenis("Adidas Ultraboost", 259.99, "37-44", "https://assets.adidas.com/images/w_600,f_auto,q_auto/fc885d1de97246fc9183af9000da38a8_9366/Tenis_Ultraboost_Light_23_Preto_HQ6340_01_standard.jpg"),
+    Tenis("Puma RS-X", 199.99, "38-42", "https://ostoresneakers.vteximg.com.br/arquivos/ids/220455-1000-1000/tenis-puma-rs-x-suede-v-branco-verde-396361-06-0.jpg?v=638321167759730000"),
+    Tenis("Asics Gel-Kayano", 379.99, "36-44", "https://www.utennis.com.br/media/catalog/product/cache/89bf88682659cca671013fd904f60135/1/0/1011a767.021-tenis-asics-gel-kayano-27-masculino-cinza-e-azul-petroleo.jpeg"),
+    Tenis("Mizuno Wave Prophecy", 499.99, "38-45", "https://mizunobr.vtexassets.com/arquivos/ids/234718-800-800?v=638247614107070000&width=800&height=800&aspect=true"),
+    Tenis("New Balance 1080v11", 299.99, "37-43", "https://imgcentauro-a.akamaihd.net/1366x1366/96046604.jpg"),
+    Tenis("Reebok Zig Kinetica", 289.99, "35-44", "https://img.joomcdn.net/86fde1725777127ef4c01f94b6f1ce4ff75ff505_1024_1024.jpeg"),
+    Tenis("Fila Disruptor", 189.99, "36-41", "https://fila.vtexassets.com/arquivos/ids/898750/5XM01765_125.jpg?v=638254809484470000"),
+    Tenis("Under Armour HOVR Phantom", 399.99, "38-44", "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQbuNnHLmHn_8w2piEyynX7-TvtsrKqKj4Uig&s"),
+    Tenis("Saucony Triumph 18", 349.99, "37-44", "https://static.netshoes.com.br/produtos/tenis-saucony-triumph-18-i-feminino/22/311-3231-022/311-3231-022_zoom5.jpg?ts=1692070491&ims=544x")
+]
+
+# Função para lidar com o comando /start
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Olá! Eu sou o bot da loja de tênis. Como posso ajudar?')
+    context.user_data.clear()
+
+# Função para lidar com as mensagens de texto
+def reply_to_message(update: Update, context: CallbackContext) -> None:
+    message = update.message.text
+    response = generate_response(message, update, context)
+    update.message.reply_text(response)
+
+# Função para processar a mensagem e gerar uma resposta
+def generate_response(message: str, update: Update, context: CallbackContext) -> str:
+    doc = nlp(message)
+    text = message.lower()
+
+    # Verificar se estamos no meio de uma compra
+    if context.user_data.get("comprando"):
+        if re.search(r'\bcancelar\b|\bmudei de ideia\b|\bquero cancelar\b', text):
+            return desistir_compra(context)
+        else:
+            return processar_compra(text, context)
+
+    # Verificar palavras-chave relevantes e contexto de modelo
+    if re.search(r'\bmodelo[s]?\b', text):
+        return get_modelos_disponiveis()
+    elif re.search(r'\btamanho[s]?\b', text):
+        return get_tamanhos_disponiveis(context)
+    elif re.search(r'\bbarato\b|\bmais barato\b', text):
+        return get_tenis_mais_barato()
+    elif re.search(r'\bpreço\b|\bpreços\b', text):
+        return get_precos()
+    elif re.search(r'\bcomprar\b|\bcompra\b', text):
+        return iniciar_compra(text, context)
+    elif re.search(r'\bpagamento\b|\bformas de pagamento\b', text):
+        return get_formas_pagamento()
+    elif re.search(r'\bfoto[s]?\b|\bimagem\b|\bfotos\b|\bimagens\b', text):
+        return enviar_fotos_tenis(update, context)
+    else:
+        for tenis in tenis_disponiveis:
+            if re.search(r'\b' + re.escape(tenis.modelo.lower().split()[0]) + r'\b', text):
+                context.user_data["modelo"] = tenis.modelo
+                return get_info_tenis(tenis.modelo)
+
+        if "modelo" in context.user_data:
+            return get_info_tenis(context.user_data["modelo"])
+
+        return 'Desculpe, não entendi. Posso te ajudar com informações sobre modelos, tamanhos e preços de tênis ou com a compra de um modelo específico.'
+
+# Funções específicas para gerar respostas
+def get_modelos_disponiveis() -> str:
+    modelos = "\n".join([f"- {tenis.modelo}" for tenis in tenis_disponiveis])
+    return f'Os modelos disponíveis são:\n{modelos}'
+
+def get_tamanhos_disponiveis(context: CallbackContext) -> str:
+    if "modelo" in context.user_data:
+        modelo = context.user_data["modelo"]
+        for tenis in tenis_disponiveis:
+            if tenis.modelo == modelo:
+                tamanhos = ", ".join(map(str, tenis.tamanhos_disponiveis()))
+                return f'Os tamanhos disponíveis para o {modelo} são: {tamanhos}'
+    return 'Por favor, mencione um modelo específico para ver os tamanhos disponíveis.'
+
+def get_tenis_mais_barato() -> str:
+    tenis_barato = min(tenis_disponiveis, key=lambda tenis: tenis.preco)
+    return f'O tênis mais barato é o {tenis_barato.modelo} por R${tenis_barato.preco:.2f}'
+
+def get_precos() -> str:
+    precos = "\n".join([f'{tenis.modelo}: R${tenis.preco:.2f}' for tenis in tenis_disponiveis])
+    return f'Os preços dos tênis são:\n{precos}'
+
+def get_info_tenis(modelo: str) -> str:
+    for tenis in tenis_disponiveis:
+        if tenis.modelo.lower() == modelo.lower():
+            tamanhos = ", ".join(map(str, tenis.tamanhos_disponiveis()))
+            return (f'O {tenis.modelo} está disponível nos tamanhos {tamanhos} '
+                    f'por R${tenis.preco:.2f}.')
+    return 'Modelo não encontrado.'
+
+def iniciar_compra(text: str, context: CallbackContext) -> str:
+    if "modelo" in context.user_data:
+        modelo = context.user_data["modelo"]
+        for tenis in tenis_disponiveis:
+            if tenis.modelo == modelo:
+                context.user_data["comprando"] = True
+                tamanhos = ", ".join(map(str, tenis.tamanhos_disponiveis()))
+                return (f'Perfeito! Você deseja comprar o {tenis.modelo}. '
+                        f'Ele custa R${tenis.preco:.2f} e está disponível nos tamanhos {tamanhos}. '
+                        'Qual tamanho você gostaria de comprar?')
+    return 'Por favor, diga o modelo do tênis que você deseja comprar.'
+
+def processar_compra(text: str, context: CallbackContext) -> str:
+    modelo = context.user_data["modelo"]
+    if not context.user_data.get("tamanho"):
+        for tenis in tenis_disponiveis:
+            if tenis.modelo == modelo:
+                if text.isdigit() and int(text) in tenis.tamanhos_disponiveis():
+                    context.user_data["tamanho"] = text
+                    return ('Qual a forma de pagamento que você gostaria de usar?\n'
+                            '- Cartão de crédito\n- Débito\n- Boleto bancário\n- Pix')
+                else:
+                    tamanhos = ", ".join(map(str, tenis.tamanhos_disponiveis()))
+                    return f'Desculpe, o tamanho {text} não está disponível para o {tenis.modelo}. Por favor, escolha um tamanho entre {tamanhos}.'
+    else:
+        tamanho = context.user_data["tamanho"]
+        context.user_data.clear()  # Limpa o estado de contexto após a compra
+        return (f'Obrigado pela sua compra! Você escolheu o {modelo} no tamanho {tamanho}. '
+                'Sua compra foi realizada com sucesso!')
+
+def get_formas_pagamento() -> str:
+    return 'Aceitamos as seguintes formas de pagamento:\n- Cartão de crédito\n- Débito\n- Boleto bancário\n- Pix'
+
+def enviar_fotos_tenis(update: Update, context: CallbackContext) -> str:
+    if "modelo" in context.user_data:
+        modelo = context.user_data["modelo"]
+        for tenis in tenis_disponiveis:
+            if tenis.modelo.lower() == modelo.lower():
+                update.message.reply_photo(tenis.foto_url, caption=f'Foto do {tenis.modelo}')
+                return 'Aqui está a foto do modelo que você pediu.'
+    return 'Por favor, mencione o modelo do tênis que você gostaria de ver a foto.'
+
+def desistir_compra(context: CallbackContext) -> str:
+    if context.user_data.get("comprando"):
+        context.user_data.clear()
+        return 'A compra foi cancelada com sucesso. Como mais posso te ajudar?'
+    else:
+        return 'Você não está no meio de uma compra.'
+
+# Função principal
+def main() -> None:
+    updater = Updater("7183875421:AAETZbIULAPkG0FYM4mlRpnE8c50Qbz82zc", use_context=True)
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, reply_to_message))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
 
 
-class ReceitasDict(dict):
-    def keys(self) -> KeysView[str]:
-        return super().keys()
-    
-lista_receitas_comidas = ReceitasDict()
-
-lista_receitas_drinks = ReceitasDict()
-
-lista_receitas_comidas.update({
-       # Receitas de comidas
-    "Frango ao Curry com Leite de Coco\n\n"
-    "Ingredientes: peito de frango, leite de coco, curry em pó, cebola, alho, gengibre, pimenta e sal.\n\n"
-    "Modo de preparo: Refogue cebola, alho e gengibre, adicione o frango cortado em cubos, depois acrescente o leite de coco e o curry em pó. Cozinhe até o frango ficar macio e o molho engrossar.":"",
-
-    "Salada de Quinoa com Vegetais Assados\n\n"
-    "Ingredientes: quinoa, abobrinha, pimentão, cebola roxa, azeite, limão, sal e pimenta.\n\n"    
-    "Modo de preparo: Cozinhe a quinoa e reserve. Corte os vegetais em pedaços, tempere com azeite, sal e pimenta, asse no forno até dourar. Misture os vegetais assados com a quinoa cozida e regue com suco de limão.":"",
-
-    "Salmão Grelhado com Molho de Ervas\n\n"
-    "Ingredientes: filés de salmão, azeite, limão, salsa, coentro, cebolinha, sal e pimenta.\n\n"
-    "Modo de preparo: Tempere os filés de salmão com sal, pimenta e suco de limão. Grelhe os filés em uma frigideira com um pouco de azeite. Para o molho, misture as ervas picadas com azeite, sal e limão e sirva sobre o salmão.":"",
-
-    "Ratatouille\n\n"
-    "Ingredientes: berinjela, abobrinha, tomate, cebola, alho, azeite, tomilho, sal e pimenta.\n\n"
-    "Modo de preparo: Corte os legumes em rodelas. Refogue a cebola e o alho em azeite, adicione os legumes em camadas, tempere com sal, pimenta e tomilho. Cozinhe em fogo baixo até os legumes ficarem macios.":"",
-
-    "Tacos de Lentilha com Guacamole\n\n"
-    "Ingredientes para os tacos: tortilhas de milho, lentilha cozida, alface, tomate, queijo, coentro.\n\n"
-    "Ingredientes para o guacamole: abacate, tomate, cebola roxa, coentro, limão, sal e pimenta.\n\n"
-    "Modo de preparo: Monte os tacos com lentilha, alface, tomate e queijo. Para o guacamole, amasse o abacate, misture os outros ingredientes e tempere a gosto.":"",
-
-    "Espaguete de Abobrinha com Molho Pesto\n\n"
-    "Ingredientes: abobrinhas, manjericão, nozes, queijo parmesão, alho, azeite, sal e pimenta.\n\n"
-    "Modo de preparo: Use um descascador para fazer tiras finas de abobrinha, refogue rapidamente em azeite. Para o molho pesto, bata manjericão, nozes, queijo parmesão, alho e azeite no liquidificador até ficar homogêneo. Misture com as espaguetes de abobrinha.":"",
-
-    "Sopa de Lentilha com Legumes\n\n"
-    "Ingredientes: lentilhas, cenoura, batata, cebola, alho, aipo, tomate, caldo de legumes, azeite, sal e pimenta.\n\n"
-    "Modo de preparo: Refogue a cebola, o alho e o aipo em azeite, adicione os legumes cortados em cubos, as lentilhas e o caldo de legumes. Cozinhe até que todos os ingredientes estejam macios.":"",
-
-    "Torta de Espinafre e Queijo Feta\n\n"
-    "Ingredientes para a massa: farinha de trigo, manteiga, água, sal.\n\n"
-    "Ingredientes para o recheio: espinafre, queijo feta, cebola, alho, azeite, sal e pimenta.\n"
-    "Modo de preparo: Faça a massa da torta e reserve. Refogue a cebola e o alho em azeite, adicione o espinafre picado, tempere com sal e pimenta. Montagem: forre uma forma com a massa, coloque o recheio por cima e cubra com queijo feta esfarelado. Asse no forno até dourar.":"",
-
-    "Salada de Batata com Mostarda e Endro\n\n"
-    "Ingredientes: batatas, cebola roxa, endro fresco, mostarda dijon, azeite, vinagre de maçã, sal e pimenta.\n\n"
-    "Modo de preparo: Cozinhe as batatas em água com sal até ficarem macias. Escorra e deixe esfriar. Misture a mostarda, o endro picado, o azeite e o vinagre em uma tigela. Adicione as batatas e a cebola roxa fatiada, misture bem e tempere com sal e pimenta.":"",
-
-    "Sobremesa de Pudim de Chia com Frutas Vermelhas\n\n"
-    "Ingredientes: leite de coco, sementes de chia, mel ou adoçante a gosto, frutas vermelhas frescas.\n\n"
-    "Modo de preparo: Misture o leite de coco com as sementes de chia e o adoçante. Deixe descansar na geladeira por algumas horas ou durante a noite. Sirva com frutas vermelhas frescas por cima.":""
-})
-
-lista_receitas_drinks.update({
-        # Receitas para drinks
-    "Mojito:\n\n"
-    "Ingredientes: Rum branco, hortelã, açúcar, suco de limão, água com gás.\n\n"
-    "Modo de preparo: Macere folhas de hortelã com açúcar e suco de limão, adicione rum e gelo, complete com água com gás.":"",
-
-    "Blue Lagoon:\n\n"
-    "Ingredientes: Vodka, Blue Curaçao, limonada.\n\n"
-    "Modo de preparo: Em um copo com gelo, adicione vodka e Blue Curaçao, complete com limonada.":"",
-
-    "Martini Clássico:\n\n"
-    "Ingredientes: Gin, vermute seco, azeitona.\n\n"
-    "Modo de preparo: Misture gin e vermute com gelo, coe em uma taça e decore com uma azeitona.":"",
-
-    "Sangria:\n\n"
-    "Ingredientes: Vinho tinto, frutas (laranja, maçã, limão), açúcar, club soda.\n\n"
-    "Modo de preparo: Misture todos os ingredientes em uma jarra e deixe na geladeira por algumas horas antes de servir.":"",
-
-    "Daiquiri:\n\n"
-    "Ingredientes: Rum branco, suco de limão, xarope simples.\n\n"
-    "Modo de preparo: Agite os ingredientes com gelo e coe em uma taça.":"",
-
-    "Gin Tônica:\n\n"
-    "Ingredientes: Gin, água tônica, limão.\n\n"
-    "Modo de preparo: Em um copo com gelo, adicione gin e água tônica, finalize com uma fatia de limão.":"",
-
-    "Margarita:\n\n"
-    "Ingredientes: Tequila, licor de laranja, suco de limão, sal.\n\n"
-    "Modo de preparo: Agite os ingredientes com gelo, sirva em uma taça previamente salgada.":"",
-
-    "Cosmopolitan:\n\n"
-    "Ingredientes: Vodka, licor de laranja, suco de cranberry, suco de limão.\n\n"
-    "Modo de preparo: Agite todos os ingredientes com gelo e coe em uma taça de martini.":"",
-
-    "Piña Colada:\n\n"
-    "Ingredientes: Rum branco, suco de abacaxi, leite de coco, gelo.\n\n"
-    "Modo de preparo: Bata todos os ingredientes no liquidificador com gelo até ficar homogêneo.":"",
-
-    "Caipirinha:\n\n"
-    "Ingredientes: Cachaça, limão, açúcar.\n\n"
-    "Modo de preparo: Macere limão com açúcar, adicione cachaça e gelo, misture bem.":""
-})
-
-receita_atual_drinks = None
-
-receita_atual_comidas = None
-
-# Função para iniciar o menu
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    chat_id = message.chat.id
-    boas_vindas = "Bem-vindo ao Bot de Perguntas receitas!\n\n" \
-                  "O Bot possui alguns conhecimentos sobre receita."\
-                  "Para começar, use o comando receita ou drinks.\n\n" \
-                  "Aqui estão alguns comandos disponíveis:\n\n" \
-                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n\n" \
-                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas.\n\n"\
-                  "deletar - uma grande parte das mensagens a cima\n\n"\
-                  "iniciar - para ver essa mensagem novamente"
-
-    bot.send_message(chat_id, boas_vindas)
-
-
-# Função para iniciar o menu
-@bot.message_handler(func=lambda message: message.text.lower() == "iniciar")
-def handle_start(message):
-    chat_id = message.chat.id
-    boas_vindas = "Bem-vindo ao Bot de Perguntas receitas!\n\n" \
-                  "O Bot possui alguns conhecimentos sobre receita."\
-                  "Para começar, use o comando receita ou drinks.\n\n" \
-                  "Aqui estão alguns comandos disponíveis:\n\n" \
-                  "receita - Para conseguir visualizar uma receita em questão de forma simples.\n\n" \
-                  "drinks - Para conseguir visualizar algumas receitas de algumas bebidas.\n\n"\
-                  "deletar - uma grande parte das mensagens a cima\n\n"\
-                  "iniciar - para ver essa mensagem novamente"
-    
-    bot.send_message(chat_id, boas_vindas)
-
-# Função para mostrar uma receita de comidas
-@bot.message_handler(func=lambda message: message.text.lower() == 'receita')
-def handle_text(message):   
-    chat_id = message.chat.id
-    receita_atual_comidas = random.choice(list(lista_receitas_comidas.keys()))
-    bot.send_message(chat_id, receita_atual_comidas)
-
-# Função para mostrar uma receita de comidas
-@bot.message_handler(func=lambda message: message.text.lower() == 'drinks')
-def handle_text(message):
-    chat_id = message.chat.id
-    receita_atual_drinks = random.choice(list(lista_receitas_drinks.keys()))
-    bot.send_message(chat_id, receita_atual_drinks)
-
-
-# Função para excluir todas as mensagens do chat
-@bot.message_handler(func=lambda message: message.text.lower() == 'deletar')
-def handle_delete_all_messages(message):
-    chat_id = message.chat.id
-    message_id = message.message_id
-    # Obtém o ID da última mensagem no chat
-    last_message_id = message_id - 1
-    # Exclui todas as mensagens do chat até a última mensagem
-    while last_message_id >= 0:
-        # Tenta excluir a mensagem
-        try:
-            bot.delete_message(chat_id, last_message_id)
-        except Exception as e:
-            print(f"Erro ao excluir mensagem: {e}")
-        # Atualiza o ID da última mensagem processada
-        last_message_id -= 1
-    try:
-        bot.delete_message(chat_id, message_id)
-    except Exception as e:
-        print(f"Erro ao excluir menssagem atual: {e}")
-
-
-# Inicialização do bot
-bot.polling()
+#"7183875421:AAETZbIULAPkG0FYM4mlRpnE8c50Qbz82zc
